@@ -1,0 +1,22 @@
+{
+  "InstanceId": "{{ instance_id }}",
+  "AmiName": "{{ app_name }}_{{ ami_name }}_{{ epoch }}",
+  "AmiTags": [
+    {
+      "Key": "Application",
+      "Value": "{{ Application }}"
+    },
+    {
+      "Key": "Owner",
+      "Value": "{{ Owner }}"
+    },
+    {
+      "Key": "Project",
+      "Value": "Cloud Migration Project"
+    },
+    {
+      "Key": "Environment",
+      "Value": "{{ env }}"
+    }
+  ]
+}

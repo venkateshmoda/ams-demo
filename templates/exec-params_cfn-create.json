@@ -1,0 +1,86 @@
+{
+  "CloudFormationTemplateS3Endpoint": "{{ cf_template_url }}",
+  "Description": "{{ Description }}",
+  "Name": "{{ Name }}",
+  "Tags": [
+    {
+      "Key": "Application",
+      "Value": "{{ Application }}"
+    },
+    {
+      "Key": "Owner",
+      "Value": "{{ Owner }}"
+    },
+    {
+      "Key": "Contact",
+      "Value": "{{ Contact }}"
+    },
+    {
+      "Key": "Project",
+      "Value": "Cloud Migration Project"
+    },
+    {
+      "Key": "Environment",
+      "Value": "{{ env }}"
+    },
+    {
+      "Key": "Epoch",
+      "Value": "{{ epoch }}"
+    }
+  ],
+  "Parameters": [
+    {
+      "Name": "VpcId",
+      "Value": "{{ VpcId }}"
+    },
+    {
+      "Name": "PrivSubnet",
+      "Value": "{{ PrivSubnet }}"
+    },
+    {
+      "Name": "PrivSubnets",
+      "Value": "{{ PrivSubnets }}"
+    },
+    {
+      "Name": "DBAllocatedStorage",
+      "Value": "{{ DBAllocatedStorage }}"
+    },
+    {
+      "Name": "DBInstanceClass",
+      "Value": "{{ DBInstanceClass }}"
+    },
+    {
+      "Name": "MultiAZDatabase",
+      "Value": "{{ MultiAZDatabase }}"
+    },
+    {
+      "Name": "AppWebInstanceProfile",
+      "Value": "{{ AppWebInstanceProfile }}"
+    },
+    {
+      "Name": "AppWebInstanceType",
+      "Value": "{{ AppWebInstanceType }}"
+    },
+    {
+      "Name": "AppWebImageId",
+      "Value": "{{ AppWebImageId }}"
+    },
+    {
+      "Name": "SecretLocation",
+      "Value": "{{ SecretLocation }}"
+    },
+    {
+      "Name": "Environment",
+      "Value": "{{ env }}"
+    },
+    {
+      "Name": "ManagementSG",
+      "Value": "{{ ManagementSG }}"
+    },
+    {
+      "Name": "Epoch",
+      "Value": "{{ epoch }}"
+    }
+    
+  ]
+}

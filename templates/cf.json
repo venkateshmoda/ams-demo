@@ -1,0 +1,299 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+
+  "Description": "{{ Description }}",
+
+  "Parameters": {
+    "VpcId": {
+      "Type": "AWS::EC2::VPC::Id",
+      "Description": "VpcId of your existing Virtual Private Cloud (VPC)",
+      "ConstraintDescription": "The VPC Id of an existing Virtual Private Cloud."
+    },
+
+    "PrivSubnet": {
+      "Type": "AWS::EC2::Subnet::Id",
+      "Description": "The string of the Private SubnetId in your Virtual Private Cloud (VPC)",
+      "ConstraintDescription": "Subnet Id"
+    },
+
+    "PrivSubnets": {
+      "Type": "List<AWS::EC2::Subnet::Id>",
+      "Description": "The list of Private SubnetIds in your Virtual Private Cloud (VPC)",
+      "ConstraintDescription": "must be a list of at least two existing subnets associated with at least two different availability zones. They should be residing in the selected Virtual Private Cloud."
+    },
+
+    "DBAllocatedStorage": {
+      "Default": "700",
+      "Description": "The size of the database (Gb)",
+      "Type": "Number",
+      "MinValue": "50",
+      "MaxValue": "1024",
+      "ConstraintDescription": "must be between 600 and 3072Gb."
+    },
+
+    "DBInstanceClass": {
+      "Description": "The database instance type",
+      "Type": "String",
+      "Default": "db.m5.xlarge",
+      "ConstraintDescription": "must select a valid database instance type."
+    },
+
+    "MultiAZDatabase": {
+      "Default": "true",
+      "Description": "Create a Multi-AZ MySQL Amazon RDS database instance",
+      "Type": "String",
+      "AllowedValues": [ "true", "false" ],
+      "ConstraintDescription": "must be either true or false."
+    },
+
+    "AppWebInstanceProfile": {
+      "Description": "WebServer EC2 IAM instance profile (with read permission to AWS Secrets Manager)",
+      "Type": "String",
+      "Default": "my_instance_profile",
+      "AllowedPattern": "^[a-zA-Z0-9-_]*$",
+      "ConstraintDescription": "Must be a valid pre-existing EC2 IAM role aka instance profile."
+    },
+
+    "AppWebInstanceType": {
+      "Description": "WebServer EC2 instance type",
+      "Type": "String",
+      "Default": "t3.xlarge",
+      "ConstraintDescription": "must be a valid EC2 instance type."
+    },
+
+    "AppWebImageId": {
+      "Description": "Image ID that will be used for the servers",
+      "Type": "String",
+      "Default": "ami-xxx",
+      "ConstraintDescription": "Must be a valid AMI."
+    },
+    
+    "Environment": {
+      "Description": "Environment Name",
+      "Type": "String",
+      "Default": "nonprod",
+      "ConstraintDescription": "Environment Name, either dev,test,nonprod,prod",
+      "AllowedValues": [ "dev","nonprod", "prod", "test" ]
+    },
+
+    "Epoch": {
+      "Description": "Epoch (seconds since epoch) to provide a unique value",
+      "Type": "String",
+      "Default": "xxx"
+    },
+
+    "AppWebRootVolumeSize": {
+      "Description": "The size of the root disk (Gb)",
+      "Type": "Number",
+      "Default": "100"
+    },
+
+    "AppWebDataVolume1Size": {
+      "Description": "The size of data disk 1 (Gb)",
+      "Type": "Number",
+      "Default": "50"
+    },
+
+    "AppWebDataVolume2Size": {
+      "Description": "The size of data disk 2 (Gb)",
+      "Type": "Number",
+      "Default": "50"
+    },
+
+    "ManagementSG": {
+      "Description": "SG of Management box",
+      "Type": "String",
+      "Default": "sg-xxx"
+    },
+
+    "SecretLocation": {
+      "Description": "Secret location",
+      "Type": "String",
+      "Default": "secret"
+    }
+    
+  },
+
+  "Resources": {
+
+    "AppWebEC2Instance": {
+      "Type": "AWS::EC2::Instance",
+      "Properties": {
+        "BlockDeviceMappings": [
+           {
+              "DeviceName": "/dev/sda1",
+              "Ebs": {
+                "VolumeSize": { "Ref": "AppWebRootVolumeSize" },
+                "Encrypted": "True"
+              }
+           },
+                      {
+              "DeviceName": "xvdf",
+              "Ebs": {
+                "VolumeSize": { "Ref": "AppWebDataVolume1Size" },
+                "Encrypted": "True"
+              }
+           },
+                      {
+              "DeviceName": "xvdg",
+              "Ebs": {
+                "VolumeSize": { "Ref": "AppWebDataVolume2Size" },
+                "Encrypted": "True"
+              }
+           }
+        ],
+        "UserData": {
+          "Fn::Base64": {
+            "Fn::Join": [
+              "",
+              [
+                "<powershell>\n",
+                "Copy-S3Object -BucketName {{ s3_bucket }} -Key ec2-startup.ps1 -LocalFile c:\\ec2-startup.ps1\n",
+                "c:\\ec2-startup\n",
+                "</powershell>"
+              ]
+            ]
+          }
+        },
+        "ImageId": { "Ref": "AppWebImageId" },
+        "IamInstanceProfile": { "Ref": "AppWebInstanceProfile" },
+        "InstanceType": { "Ref": "AppWebInstanceType" },
+        "SecurityGroupIds" : [ { "Ref": "EC2ServersSecurityGroup" } ],
+        "SubnetId": { "Ref": "PrivSubnet" },
+        "Tags": [
+          {
+            "Key": "Name",
+            "Value": {"Fn::Join" : ["", ["{{ app_name }} AppWeb ", { "Ref" : "Epoch" }, " (",{ "Ref" : "AWS::StackName" },")" ]]}
+          },
+          {
+            "Key": "Type",
+            "Value": "Pet"
+          },
+          {
+            "Key": "ServerName",
+            "Value": "appweb"
+          },
+          {
+            "Key": "Database",
+            "Value": { "Fn::GetAtt": [ "DBInstance", "Endpoint.Address" ] }
+          },
+          {
+            "Key": "Backup",
+            "Value": "True"
+          }
+        ]        
+      }
+    },
+
+    "AppWebEC2InstanceRecoveryAlarm": {
+      "Type": "AWS::CloudWatch::Alarm",
+      "Properties": {
+        "AlarmDescription": "Trigger a recovery when instance status check fails for 15 consecutive minutes.",
+        "Namespace": "AWS/EC2" ,
+        "MetricName": "StatusCheckFailed_System",
+        "Statistic": "Minimum",
+        "Period": "60",
+        "EvaluationPeriods": "15",
+        "ComparisonOperator": "GreaterThanThreshold",
+        "Threshold": "0",
+        "AlarmActions": [ {"Fn::Join" : ["", ["arn:aws:automate:", { "Ref" : "AWS::Region" }, ":ec2:recover" ]]} ],
+        "Dimensions": [{"Name": "InstanceId","Value": {"Ref": "AppWebEC2Instance"}}]
+      }
+    },    
+
+    "EC2ServersSecurityGroup": {
+      "Type": "AWS::EC2::SecurityGroup",
+      "Properties": {
+        "GroupDescription": "Enable TCP access via port 16073",
+        "SecurityGroupIngress": [
+          {
+            "IpProtocol": "tcp",
+            "FromPort": "16073",
+            "ToPort": "16073",
+            "CidrIp" : "10.0.0.0/8"
+          }
+        ],
+        "VpcId": { "Ref": "VpcId" },
+        "Tags": [
+          {
+            "Key": "Name",
+            "Value": {"Fn::Join" : ["", ["{{ app_name }} SG for AppWeb ", { "Ref" : "Epoch" }, " (",{ "Ref" : "AWS::StackName" },")" ]]}
+          }
+        ]
+      }
+    },
+    
+    "DBSecurityGroup": {
+      "Type": "AWS::EC2::SecurityGroup",
+      "Properties": {
+        "GroupDescription": "Open database for access",
+        "SecurityGroupIngress": [
+          {
+            "IpProtocol": "tcp",
+            "FromPort": "1433",
+            "ToPort": "1433",
+            "SourceSecurityGroupId": { "Ref": "EC2ServersSecurityGroup" }
+          },
+          {
+            "IpProtocol": "tcp",
+            "FromPort": "1433",
+            "ToPort": "1433",
+            "SourceSecurityGroupId": { "Ref": "ManagementSG" }
+          }
+          
+        ],
+        "VpcId": { "Ref": "VpcId" }
+      }
+    },
+
+    "DBSubnetGroup": {
+      "Type": "AWS::RDS::DBSubnetGroup",
+      "Properties": {
+        "DBSubnetGroupDescription": "Private subnet group",
+        "SubnetIds": { "Ref": "PrivSubnets" }
+      }
+    },
+
+    "DBInstance": {
+      "Type": "AWS::RDS::DBInstance",
+      "Properties": {
+        "Engine": "sqlserver-se",
+        "EngineVersion": "13.00.5216.0.v1",
+        "LicenseModel": "license-included",
+        "StorageEncrypted": "True",
+        {% raw -%}
+        "MasterUsername":     {"Fn::Join": ["", ["{{resolve:secretsmanager:",{"Ref": "SecretLocation"},":SecretString:Username}}" ] ] },
+        "MasterUserPassword": {"Fn::Join": ["", ["{{resolve:secretsmanager:",{"Ref": "SecretLocation"},":SecretString:Password}}" ] ] },
+        {%- endraw %}
+
+        "MultiAZ": { "Ref": "MultiAZDatabase" },
+        "DBInstanceClass": { "Ref": "DBInstanceClass" },
+        "AllocatedStorage": { "Ref": "DBAllocatedStorage" },
+        "DBSubnetGroupName": { "Ref": "DBSubnetGroup" },
+        "VPCSecurityGroups": [ { "Fn::GetAtt": [ "DBSecurityGroup", "GroupId" ] } ],
+        "DBInstanceIdentifier": {"Fn::Join" : ["-", ["{{ app_prefix }}-db", { "Ref" : "Epoch" },{ "Ref" : "AWS::StackName" } ]]}
+      }
+    }
+
+  },
+
+  "Outputs": {
+
+    "AppWebEC2InstancePrivateDnsName": {
+      "Description": "Private DNS Name for the Instance.",
+      "Value": { "Fn::GetAtt": [ "AppWebEC2Instance", "PrivateDnsName" ] }
+    },
+
+    "AppWebEC2InstanceInstanceId": {
+      "Description": "Instance ID for the Instance.",
+      "Value": { "Ref" : "AppWebEC2Instance" }
+    },
+
+    "RDSEndpoint": {
+      "Description": "Endpoint address of the RDS Instance.",
+      "Value": { "Fn::GetAtt": [ "DBInstance", "Endpoint.Address" ] }
+    }
+
+  }
+  
+}

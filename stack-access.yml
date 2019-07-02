@@ -1,0 +1,134 @@
+---
+- hosts: localhost
+  tasks:
+
+  - name: common includes
+    include: includes/common-includes.yml
+    tags:
+      - always
+
+  - name: Get list of stacks
+    shell: |
+      aws cloudformation list-stacks --stack-status-filter CREATE_COMPLETE UPDATE_COMPLETE CREATE_IN_PROGRESS --query "StackSummaries[*].{StackName:StackName, TemplateDescription:TemplateDescription}" --output table {{ ams_profile_string }} | grep {{ app_name }}
+    register: cf_stacks
+
+  - name: Show list of stacks
+    debug:
+      msg: "{{ cf_stacks.stdout_lines }}"
+
+  - name: What stack do you want access to?
+    pause:
+      prompt: "Stack Id?"
+    register: stack_id 
+
+  - name: generate exec-params_stack-access.json
+    template:
+      src: templates/exec-params_stack-access.json
+      dest: outputs/exec-params_stack-access.json
+
+  - name: create RFC
+    shell: |
+      aws amscm create-rfc \
+      --change-type-id ct-1dmlg9g1l91h6 --change-type-version "1.0" \
+      --title "Request for Access" \
+      --execution-parameters "file://outputs/exec-params_stack-access.json" --region us-east-1 {{ ams_profile_string }}
+    register: rfc_id
+    tags:
+      - rfc
+
+  - name: submit RFC
+    shell: |
+      aws amscm submit-rfc --rfc-id {{ (rfc_id.stdout | from_json).RfcId }} --region us-east-1 {{ ams_profile_string }}
+    tags:
+      - rfc
+
+  - name: check RFC
+    shell: |
+      aws amscm get-rfc --rfc-id {{ (rfc_id.stdout | from_json).RfcId }} --query "Rfc.{Status:Status.Name,Exec:ExecutionOutput}" --region us-east-1 {{ ams_profile_string }}
+    retries: 120
+    delay: 5
+    register: result
+    until: (result.stdout | from_json).Status == "Success"
+    tags:
+      - rfc
+
+  - name: Get RFC Output
+    shell: |
+      aws amscm get-rfc --rfc-id {{ (rfc_id.stdout | from_json).RfcId }} --query "Rfc.{Exec:ExecutionOutput}" --region us-east-1 {{ ams_profile_string }}
+    register: view_rfc
+    tags:
+      - rfc
+
+  - name: Show RFC Output
+    debug:
+      msg: "{{ (view_rfc.stdout | from_json).Exec }}"
+    tags:
+      - rfc
+
+  - name: Get AppWebEC2InstancePrivateDnsName
+    shell: |
+      aws cloudformation describe-stacks --stack-name {{ stack_id.user_input }} --query 'Stacks[0].Outputs[?OutputKey==`AppWebEC2InstancePrivateDnsName`].OutputValue' --output text {{ ams_profile_string }}
+    register: AppWebEC2InstancePrivateDnsName
+
+  - name: Get RDSEndpoint
+    shell: |
+      aws cloudformation describe-stacks --stack-name {{ stack_id.user_input }} --query 'Stacks[0].Outputs[?OutputKey==`RDSEndpoint`].OutputValue' --output text {{ ams_profile_string }}
+    register: RDSEndpoint
+
+  - name: Check that RDP to bastion host is accessible (3389) - You will need to be on network, not guest WiFi
+    wait_for:
+      host: rdpbastion1.A025049277119.amazonaws.com
+      port: "3389"
+      state: started         # Port should be open
+      delay: 0               # No wait before first check (sec)
+      timeout: 3             # Stop checking after timeout (sec)
+    ignore_errors: yes
+    tags:
+      - rdptest
+
+  - name: Get Epoch
+    shell: |
+      aws cloudformation describe-stacks --stack-name {{ stack_id.user_input }} --query 'Stacks[*].{Epoch:Tags[?Key==`Epoch`]|[0].Value}' --output text {{ ams_profile_string }}
+    register: epoch_from_cf
+    ignore_errors: yes
+
+  - name: RDP Guide
+    debug:
+      msg:
+        - "1. Login to Bastion ======================================================================================="
+        - ""
+        - "Now that you've requested access the bastion host, RDP into it using your AD credentials, ie..."
+        - "rdesktop -d OCN -u {{ username }} rdpbastion1.A025049277119.amazonaws.com"
+        - ""
+        - "Choose one of the bastion hosts from this list:"
+        - ""
+        - "# RDP Hosts :: NonProd ----------------"
+        - "---------------------------------------"
+        - "rdpbastion1.A025049277119.amazonaws.com"
+        - "rdpbastion2.A025049277119.amazonaws.com"
+        - "rdpbastion3.A025049277119.amazonaws.com"
+        - "rdpbastion4.A025049277119.amazonaws.com"
+        - ""
+        - "# RDP Hosts :: Prod -------------------"
+        - "---------------------------------------"
+        - "rdpbastion1.A449159183592.amazonaws.com"
+        - "rdpbastion2.A449159183592.amazonaws.com"
+        - "rdpbastion3.A449159183592.amazonaws.com"
+        - "rdpbastion4.A449159183592.amazonaws.com"
+        - ""
+        - ""
+        - "2. Login to your Target Host =============================================================================="
+        - ""
+        - "Once logged into the bastion, you should have access to your EC2s and RDSs."
+        - "EC2s can be RDP'd into with your same AD credentials (domain=OCN username={{ username }}) from the bastion host."
+        - ""
+        - "RDSs can be accessed via db string connection."
+        - Use `aws secretsmanager get-secret-value --secret-id customer-{{ app_prefix }}/{{ app_name }}_DB_Credentials_{{ env }}` on an EC2 server to obtain credentials."
+        - Old format was -> `aws secretsmanager get-secret-value --secret-id customer-{{ app_prefix }}/{{ app_name }}_DB_Credentials_{{ env }}_{{ epoch_from_cf.stout | default('xxx') }}`."
+        - ""
+        - "=== {{ stack_id.user_input }} ==========================="
+        - ""
+        - "EC2 :: AppWebEC2InstancePrivateDnsName: {{ AppWebEC2InstancePrivateDnsName.stdout }}"
+        - "RDS :: RDSEndpoint: {{ RDSEndpoint.stdout }}"
+    tags:
+      - rdphelp

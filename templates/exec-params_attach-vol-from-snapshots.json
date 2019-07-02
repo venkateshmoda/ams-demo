@@ -1,0 +1,7 @@
+{
+  "Comment": "Please create volumes from these snapshots with the JobID/Ticket of {{ unique_string_in_description.user_input }}. Snapshot Info (snapshot-id,device-name,size-gb): {{ snapshots_filtered.stdout | replace('\t', ' ') | replace('\n', ',') }} and attach them to instance ...",
+  "Priority": "Low",
+  "RelatedIds": [
+    "{{ instance_id.user_input }}"
+  ]
+}

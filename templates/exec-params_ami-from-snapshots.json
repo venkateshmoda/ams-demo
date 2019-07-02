@@ -1,0 +1,7 @@
+{
+  "Comment": "Please create a new AMI based on the snapshots for Instance {{ instance_id.user_input }}, with the JobID/Ticket of {{ unique_string_in_description.user_input }}. Snapshot Info (snapshot-id,device-name,size-gb): {{ snapshots_filtered.stdout | replace('\t', ' ') | replace('\n', ',') }}.",
+  "Priority": "Low",
+  "RelatedIds": [
+    "{{ instance_id.user_input }}"
+  ]
+}

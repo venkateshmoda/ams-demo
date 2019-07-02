@@ -1,0 +1,72 @@
+---
+- hosts: localhost
+  tasks:
+
+  - name: common includes
+    include: includes/common-includes.yml
+    tags:
+      - always
+
+  - name: list/ask for stack id
+    include: includes/get-stack-id.yml
+
+  - name: list/ask for instance id
+    include: includes/choose-ec2.yml
+      
+  - name: Get snapshots for {{ instance_id.user_input }}
+    shell: |
+      aws ec2 describe-snapshots \
+      --filters Name=tag:ams:instance-id,Values={{ instance_id.user_input }} \
+      --query "Snapshots[*].{ID:SnapshotId,Time:StartTime,Desc:Description,Size_GB:VolumeSize}" \
+      --output table  {{ ams_profile_string }}
+    register: snapshots_table
+
+  - name: List snapshots for {{ instance_id.user_input }}
+    debug:
+      msg: "{{ snapshots_table.stdout_lines }}"
+
+  - name: Which JobId/Ticket would you like to choose?
+    pause:
+      prompt: "Unique String in Description?"
+    register: unique_string_in_description
+  
+    #  aws ec2 describe-snapshots \
+    #   --filters Name=tag:ams:instance-id,Values=i-011af8b1627c488bf Name=description,Values=*11423* \
+    #   --query 'Snapshots[*].{ID:SnapshotId,VolumeSize_GB:VolumeSize,Name:Tags[?Key==`ams:device`]|[0].Value}' \
+    #   --output text
+
+  - name: Get snapshots for {{ instance_id.user_input }} - filter on {{ unique_string_in_description.user_input }}
+    shell: |
+      aws ec2 describe-snapshots \
+      --filters Name=tag:ams:instance-id,Values={{ instance_id.user_input }} Name=description,Values=*{{ unique_string_in_description.user_input }}* \
+      --query 'Snapshots[*].{ID:SnapshotId,VolumeSize_GB:VolumeSize,Name:Tags[?Key==`ams:device`]|[0].Value}' \
+      --output text {{ ams_profile_string }}
+    register: snapshots_filtered
+
+  - name: List snapshots for {{ instance_id.user_input }} - filter on {{ unique_string_in_description.user_input }}
+    debug:
+      msg: "{{ snapshots_filtered.stdout_lines }}"
+    
+  - name: generate params file
+    template:
+      src: templates/exec-params_ami-from-snapshots.json
+      dest: outputs/exec-params_ami-from-snapshots.json
+    tags:
+      - ams
+
+  - name: Create the RFC > Create AMI in {{ env }} request_id {{ unique_key }}
+    shell: |
+      aws amscm create-rfc \
+      --change-type-id ct-0xdawir96cy7k --change-type-version "1.0" \
+      --title "{{ app_name }} Create AMI from snapshots - JobId/Ticket {{ unique_string_in_description.user_input }} - Instance {{ instance_id.user_input }} in {{ env }} [request_id {{ unique_key }}]" \
+      --execution-parameters "file://outputs/exec-params_ami-from-snapshots.json" --region us-east-1 {{ ams_profile_string }}
+    register: rfc_id
+    tags:
+      - ams
+      - ams_create
+
+  - name: Include {{ app_name }} submit stack
+    include: includes/submit-rfc.yml
+
+
+

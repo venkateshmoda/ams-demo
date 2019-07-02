@@ -1,0 +1,46 @@
+  - name: Submit the RFC
+    shell: |
+      aws amscm submit-rfc --rfc-id {{ (rfc_id.stdout | from_json).RfcId }} --region us-east-1 {{ ams_profile_string }}
+
+  - name: Check the RFC results in a Success
+    shell: |
+      aws amscm get-rfc --rfc-id {{ (rfc_id.stdout | from_json).RfcId }} --query "Rfc.{Status:Status.Name,Exec:ExecutionOutput,StatusReasonErrorMsg:StatusReason}" --region us-east-1 {{ ams_profile_string }}
+    retries: 30
+    delay: 5
+    register: result
+    until: (result.stdout | from_json).Status == "Success"
+    failed_when: (result.stdout | from_json).Status == "Canceled" or (result.stdout | from_json).Status == "Rejected" or (result.stdout | from_json).Status == "Failure"
+    ignore_errors: yes
+
+  # - name: Check the RFC Full
+  #   shell: |
+  #     aws amscm get-rfc --rfc-id {{ (rfc_id.stdout | from_json).RfcId }}" --region us-east-1 {{ ams_profile_string }}
+  #   register: result_full
+
+  # - name: RFC Result Full
+  #   debug:
+  #     msg: "{{ result_full }}"
+  #   ignore_errors: yes
+
+  - name: RFC Result - StatusReasonErrorMsg
+    debug:
+      msg: "{{ (result.stdout | from_json).StatusReasonErrorMsg }}"
+    when: (result.stdout | from_json).Status == "Canceled" or (result.stdout | from_json).Status == "Rejected" or (result.stdout | from_json).Status == "Failure"
+    ignore_errors: yes
+
+  - name: RFC Result - Execution Output
+    debug:
+      msg: "{{ (result.stdout | from_json).Exec }}"
+    when: (result.stdout | from_json).Status != "InProgress"
+    ignore_errors: yes
+
+  - name: RFC Result - Status
+    debug:
+      msg: "{{ (result.stdout | from_json).Status }}"
+    when: (result.stdout | from_json).Status != "InProgress"
+    ignore_errors: yes
+
+  - name: More Info - Command to run to view the status of this RFC
+    debug:
+      msg: "   ansible-playbook stack-checker.yml --extra-vars 'rfc_id={{ (rfc_id.stdout | from_json).RfcId }} env={{ env }}'            "
+    ignore_errors: yes

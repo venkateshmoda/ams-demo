@@ -1,0 +1,31 @@
+{
+  "Description": "S3 Bucket Creation - {{ s3_bucket }}",
+  "VpcId": "{{ VpcId }}",
+  "StackTemplateId": "stm-s2b72beb000000000",
+  "Name": "S3 Bucket Creation - {{ s3_bucket }}",
+  "Tags": [
+    {
+      "Key": "Application",
+      "Value": "{{ Application }}"
+    },
+    {
+      "Key": "Owner",
+      "Value": "{{ Owner }}"
+    },
+    {
+      "Key": "Project",
+      "Value": "Cloud Migration Project"
+    },
+    {
+      "Key": "Environment",
+      "Value": "{{ env }}"
+    }
+  ],
+  "TimeoutInMinutes": 10,
+  "Parameters": {
+    "AccessControl": "Private",
+    "BucketName": "{{ s3_bucket }}",
+    "ServerSideEncryption": "None",
+    "Versioning": "Suspended"
+  }
+}

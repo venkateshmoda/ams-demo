@@ -1,0 +1,9 @@
+{
+  "DomainFQDN": "{{ domain_fqdn }}",
+  "StackIds": [
+    "{{ stack_id.user_input }}"
+  ],
+  "TimeRequestedInHours": 8,
+  "Username": "{{ username }}",
+  "VpcId": "{{ VpcId }}"
+}

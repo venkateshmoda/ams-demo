@@ -1,0 +1,29 @@
+---
+- hosts: localhost
+  tasks:
+
+  - name: common includes
+    include: includes/common-includes.yml
+    tags:
+      - always
+
+  - name: generate execution params file
+    template:
+      src: templates/exec-params_create-s3.json
+      dest: outputs/exec-params_create-s3.json
+    tags:
+      - ams
+      
+  - name: create RFC
+    shell: |
+      aws amscm create-rfc \
+      --change-type-id ct-1a68ck03fn98r --change-type-version "3.0" \
+      --title "AMS S3 Bucket Creation - {{ s3_bucket }}" \
+      --execution-parameters "file://outputs/exec-params_create-s3.json" --region us-east-1 {{ ams_profile_string }}
+    register: rfc_id
+    tags:
+      - ams
+      - ams_create
+
+  - name: Include {{ app_name }} submit stack
+    include: includes/submit-rfc.yml

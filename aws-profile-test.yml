@@ -1,0 +1,51 @@
+---
+- hosts: localhost
+  tasks:
+
+  - name: load env specific vars
+    include_vars:
+      dir: group_vars
+      files_matching: "{{ env }}.yml"
+    tags:
+      - vars
+      - always
+
+  - name: Shell using AWS CLI no profile info (should fail if you have nothing set by default) - be CAREFUL of setting anything in default profile!
+    shell: |
+      aws iam list-account-aliases --output text
+    ignore_errors: true
+    register: result_no_profile
+
+  - name: Shell using AWS CLI and var = ams_profile_string ({{ ams_profile_string }}) = Use AMS Env Profile as per what we pass in for env var ({{ env }})
+    shell: |
+      aws iam list-account-aliases --output text {{ ams_profile_string }}
+    register: result_ams_profile_string
+
+  - name: Shell using AWS CLI and var = aws_profile_np ({{ aws_profile_np }}) = Force use of AWS NonProd Profile
+    shell: |
+      aws iam list-account-aliases --output text --profile {{ aws_profile_np }}
+    register: result_aws_profile_np
+
+  - name: Shell using AWS CLI and var = aws_profile_ams_np ({{ aws_profile_ams_np }}) = Force use of AMS NonProd Profile
+    shell: |
+      aws iam list-account-aliases --output text --profile {{ aws_profile_ams_np }}
+    register: result_aws_profile_ams_np
+
+  - name: Shell using AWS CLI and var = aws_profile_ams_p ({{ aws_profile_ams_p }}) = Force use of AMS NonProd Profile
+    shell: |
+      aws iam list-account-aliases --output text --profile {{ aws_profile_ams_p }}
+    register: result_aws_profile_ams_p
+
+  - name: AWS Profile Info
+    debug:
+      msg:
+        - "======================================================================================="
+        - ""
+        - "DEFAULT                       >> result_no_profile         = {{ result_no_profile.stdout | replace('ACCOUNTALIASES\t', ' ') }} "
+        - "PROFILE_STRING                >> result_ams_profile_string = {{ result_ams_profile_string.stdout | replace('ACCOUNTALIASES\t', ' ') }} "
+        
+        - "These should always be fixed..."
+        - ""
+        - "AWS Non-Prod (Test Env)       >> result_aws_profile_np     = {{ result_aws_profile_np.stdout | replace('ACCOUNTALIASES\t', ' ') }} "
+        - "AMS Non-Prod (Deployable Env) >> result_aws_profile_ams_np = {{ result_aws_profile_ams_np.stdout | replace('ACCOUNTALIASES\t', ' ') }} "
+        - "AMS Prod (Deployable Env)     >> result_aws_profile_ams_p  = {{ result_aws_profile_ams_p.stdout | replace('ACCOUNTALIASES\t', ' ') }} "

@@ -1,0 +1,106 @@
+---
+- hosts: localhost
+  tasks:
+
+  - name: common includes
+    include: includes/common-includes.yml
+    tags:
+      - always
+
+  - name: generate params file - instance-id
+    template:
+      src: templates/exec-params_instance-id.json
+      dest: outputs/exec-params_instance-id.json
+    tags:
+      - ams
+      - instance-id-template
+
+
+
+
+
+  - name: Stop instance before backup
+    shell: |
+      aws amscm create-rfc \
+      --change-type-id ct-3mvvt2zkyveqj --change-type-version "1.0" \
+      --title "{{ app_name }} Stop Instance for {{ instance_id }} in {{ env }} [request_id {{ unique_key }}]" \
+      --execution-parameters "file://outputs/exec-params_instance-id.json" --region us-east-1 {{ ams_profile_string }}
+    register: rfc_id_stop
+    tags:
+     - stop
+
+  - name: Submit the RFC
+    shell: |
+      aws amscm submit-rfc --rfc-id {{ (rfc_id_stop.stdout | from_json).RfcId }} --region us-east-1 {{ ams_profile_string }}
+    tags:
+     - stop
+
+  - name: Check the RFC results in a Success
+    shell: |
+      aws amscm get-rfc --rfc-id {{ (rfc_id_stop.stdout | from_json).RfcId }} --query "Rfc.{Status:Status.Name,Exec:ExecutionOutput,StatusReasonErrorMsg:StatusReason}" --region us-east-1 {{ ams_profile_string }}
+    retries: 30
+    delay: 5
+    register: result_stop
+    until: (result_stop.stdout | from_json).Status == "Success"
+    failed_when: (result_stop.stdout | from_json).Status == "Canceled" or (result_stop.stdout | from_json).Status == "Rejected" or (result_stop.stdout | from_json).Status == "Failure"
+    ignore_errors: yes
+    tags:
+     - stop
+
+
+
+
+
+  - name: generate params file
+    template:
+      src: templates/exec-params_ami-create.json
+      dest: outputs/exec-params_ami-create.json
+    tags:
+      - ams
+
+  - name: Create the RFC > Create AMI in {{ env }} request_id {{ unique_key }}
+    shell: |
+      aws amscm create-rfc \
+      --change-type-id ct-3rqqu43krekby --change-type-version "2.0" \
+      --title "{{ app_name }} AMI Create for {{ instance_id }} in {{ env }} [request_id {{ unique_key }}]" \
+      --execution-parameters "file://outputs/exec-params_ami-create.json" --region us-east-1 {{ ams_profile_string }}
+    register: rfc_id
+    tags:
+      - ams
+      - ams_create
+
+  - name: Include {{ app_name }} submit stack
+    include: includes/submit-rfc.yml
+
+
+
+
+
+  - name: Start instance before backup
+    shell: |
+      aws amscm create-rfc \
+      --change-type-id ct-03t7kvuwx6rgr --change-type-version "1.0" \
+      --title "{{ app_name }} Start Instance for {{ instance_id }} in {{ env }} [request_id {{ unique_key }}]" \
+      --execution-parameters "file://outputs/exec-params_instance-id.json" --region us-east-1 {{ ams_profile_string }}
+    register: rfc_id_start
+    tags:
+     - start
+
+  - name: Submit the RFC - Start Instance
+    shell: |
+      aws amscm submit-rfc --rfc-id {{ (rfc_id_start.stdout | from_json).RfcId }} --region us-east-1 {{ ams_profile_string }}
+    tags:
+     - start
+
+  - name: Check the RFC results in a Success
+    shell: |
+      aws amscm get-rfc --rfc-id {{ (rfc_id_start.stdout | from_json).RfcId }} --query "Rfc.{Status:Status.Name,Exec:ExecutionOutput,StatusReasonErrorMsg:StatusReason}" --region us-east-1 {{ ams_profile_string }}
+    retries: 30
+    delay: 5
+    register: result_start
+    until: (result_start.stdout | from_json).Status == "Success"
+    failed_when: (result_start.stdout | from_json).Status == "Canceled" or (result_start.stdout | from_json).Status == "Rejected" or (result_start.stdout | from_json).Status == "Failure"
+    ignore_errors: yes
+    tags:
+      - start
+

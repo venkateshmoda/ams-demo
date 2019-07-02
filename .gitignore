@@ -1,0 +1,4 @@
+*.retry
+*GENERATED.json
+outputs*
+.DS_Store

@@ -1,0 +1,16 @@
+  - name: Get AppWebEC2InstanceInstanceId
+    shell: |
+      aws cloudformation describe-stacks --stack-name {{ stack_id.user_input }} --query 'Stacks[0].Outputs[?OutputKey==`AppWebEC2InstanceInstanceId`].OutputValue' --output text {{ ams_profile_string }}
+    register: AppWebEC2InstanceInstanceId
+
+  - name: EC2 Guide
+    debug:
+      msg:
+        - "=== {{ stack_id.user_input }} ==========================="
+        - ""
+        - "EC2 :: AppWebEC2InstanceInstanceId: {{ AppWebEC2InstanceInstanceId.stdout }}"
+
+  - name: Which ec2 would you like to choose?
+    pause:
+      prompt: "Instance Id?"
+    register: instance_id 

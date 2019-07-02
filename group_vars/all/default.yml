@@ -1,0 +1,31 @@
+# AWS Profile - for deploying test stacks to AWS
+aws_profile_np: my_aws_profile
+
+# AMS Profiles - for deploying to AMS
+aws_profile_ams_np: my_ams_profile_np
+aws_profile_ams_p: my_ams_profile_p
+
+# what profile should we use in the playbook?
+aws_profile: "{{ aws_profile_np }}" # we want to use aws_profile_np for all aws_profile calls
+
+region: ap-southeast-2
+
+app_prefix: myapp
+app_name: MY_APP
+domain_fqdn: my.domain.fqdn
+
+SecretLocation: customer-{{ app_prefix }}/{{ app_name }}_DB_Credentials_{{ env }}
+
+s3_bucket:   "automation-bucket-{{ app_prefix }}-{{ env }}"
+
+# cf related
+Description: "{{ app_name }} Application Stack {{ date_and_time }} {{ env }} {{ epoch }} - HERE IS WHAT MT CNF DOES"
+Name:        "{{ app_name }}-{{ env }}-{{ epoch }}"
+ImageId:     ami-xxx
+
+# tags
+Application: "{{ app_name }}"
+Owner:       THE OWNER
+Contact:     the.owner@email.com
+Project:     "{{ app_name }}"
+

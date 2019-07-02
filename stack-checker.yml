@@ -1,0 +1,34 @@
+---
+- hosts: localhost
+  tasks:
+
+  - name: common includes
+    include: includes/common-includes.yml
+    tags:
+      - always
+
+  - name: Get RFC info
+    shell: |
+      aws amscm get-rfc --rfc-id {{ rfc_id }} --region us-east-1 {{ ams_profile_string }}
+    register: result
+    ignore_errors: yes
+
+  - name: RFC Result
+    debug:
+      msg: "{{ result.stdout }}"
+    ignore_errors: yes
+
+  - name: RFC Result - ExecutionParameters
+    debug:
+      msg: "{{ (result.stdout | from_json).Rfc.ExecutionParameters }}"
+    ignore_errors: yes
+
+  - name: RFC Result - Execution Output
+    debug:
+      msg: "{{ (result.stdout | from_json).Rfc.ExecutionOutput }}"
+    ignore_errors: yes
+
+  - name: RFC Result - Execution Output
+    debug:
+      msg: "{{ (result.stdout | from_json).Rfc.Status }}"
+    ignore_errors: yes

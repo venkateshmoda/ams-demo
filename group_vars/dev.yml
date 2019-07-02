@@ -1,0 +1,15 @@
+ams_profile_string: "--profile {{ aws_profile_ams_np }}"
+env_postfix: "-np"
+
+# params for cf template
+########################
+VpcId:       vpc-xxx
+PrivSubnet:  subnet-xxx
+PrivSubnets: subnet-xxx,subnet-xxx
+DBAllocatedStorage: 50
+DBInstanceClass: db.m4.xlarge
+MultiAZDatabase: "false"
+AppWebInstanceProfile: INSERT_PROFILE_NAME
+AppWebInstanceType: t2.medium
+AppWebImageId: "{{ ImageId }}"
+ManagementSG: sg-xxx

@@ -1,0 +1,14 @@
+- name: Get list of stacks
+  shell: |
+    aws cloudformation list-stacks --stack-status-filter CREATE_COMPLETE UPDATE_COMPLETE --query "StackSummaries[*].{StackName:StackName, TemplateDescription:TemplateDescription}" --output table {{ ams_profile_string }} | grep {{ app_name }}
+  register: cf_stacks
+  ignore_errors: true
+
+- name: Show list of stacks
+  debug:
+    msg: "{{ cf_stacks.stdout_lines }}"
+
+- name: Which stack would you like to choose?
+  pause:
+    prompt: "Stack Id?"
+  register: stack_id 

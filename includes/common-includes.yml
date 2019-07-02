@@ -1,0 +1,28 @@
+  - name: load env specific vars
+    include_vars:
+      dir: ../group_vars
+      files_matching: "{{ env }}.yml"
+    tags:
+      - vars
+
+  - name: ALL AMS CALLS WILL USE {{ ams_profile_string }}
+    debug:
+      msg: "ALL AMS CALLS WILL USE {{ ams_profile_string }}"
+  
+  - name: Check AMS Account using ams_profile_string ({{ ams_profile_string }})
+    shell: |
+      aws iam list-account-aliases --output text {{ ams_profile_string }}
+    register: result_ams_profile_string
+
+  - name: set unique_key for this play
+    set_fact:
+     epoch: "{{ ansible_facts.date_time.epoch }}" 
+
+  - name: set unique_key for this play
+    set_fact:
+     date_and_time: "{{ ansible_facts.date_time.date }} {{ ansible_facts.date_time.time }}" 
+
+  - name: set unique_key for this play
+    set_fact:
+     unique_key: "{{ epoch }}_{{ ansible_facts.mounts[0].inode_used }}" 
+

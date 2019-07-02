@@ -1,0 +1,76 @@
+---
+- hosts: localhost
+  tasks:
+
+  - name: common includes
+    include: includes/common-includes.yml
+    tags:
+      - always  
+
+  - name: Include {{ app_name }} list stacks
+    include: includes/get-stack-id.yml
+
+  # create cf template by passing it through Ansible template engine
+  # be careful not to overdue the logic here else it may be harder to unwind should we want to move away from Ansible
+  - name: generate cf template
+    template:
+      src: templates/cf.json
+      dest: outputs/cf.json
+    tags:
+      - ams
+
+  - name: validate template locally
+    shell: |
+      aws cloudformation validate-template --template-body file://outputs/cf.json {{ ams_profile_string }}
+    tags:
+      - validate
+
+  # NEED TO KNOW NAME OF CF TO UPDATE BEFORE WE CAN USE CF (when ready copy from create play)
+
+  # - name: update a stack, pass in the template via an URL
+  #   cloudformation:
+  #     stack_name: "test-stack-test..."
+ 
+  - name: Upload cf.json (CloudFormation template) template to s3
+    shell: |
+      aws s3 cp outputs/cf.json s3://{{ s3_bucket }}/cf_updated_{{ unique_key }}.json {{ ams_profile_string }}
+    tags:
+      - ams
+
+  - name: set fact - S3 bucket URL
+    set_fact:
+     cf_template_url: "s3://{{ s3_bucket }}/cf_updated_{{ unique_key }}.json"
+
+  - name: generate exec-params_cfn-updatedrfc.json
+    template:
+      src: templates/exec-params_cfn-create.json
+      dest: outputs/exec-params_cfn-updatedrfc.json
+    tags:
+      - ams
+
+  - name: Upload exec-params_cfn-updatedrfc.json to s3
+    shell: |
+      aws s3 cp outputs/exec-params_cfn-updatedrfc.json s3://{{ s3_bucket }}/exec-params_cfn-updatedrfc_{{ unique_key }}.json {{ ams_profile_string }}
+    tags:
+      - ams
+
+  - name: generate exec-params_cfn-update.json
+    template:
+      src: templates/exec-params_cfn-update.json
+      dest: outputs/exec-params_cfn-update.json
+    tags:
+      - ams
+
+  - name: Create the RFC > Update {{ app_name }} {{ stack_id.user_input }} in {{ env }} request_id {{ unique_key }}
+    shell: |
+      aws amscm create-rfc \
+      --change-type-id ct-0xdawir96cy7k --change-type-version "1.0" \
+      --title "{{ app_name }} Stack (Update {{ stack_id.user_input }}) in {{ env }} [request_id {{ unique_key }}]" \
+      --execution-parameters "file://outputs/exec-params_cfn-update.json" --region us-east-1 {{ ams_profile_string }}
+    register: rfc_id
+    tags:
+      - ams
+      - ams_create
+
+  - name: Include {{ app_name }} submit stack
+    include: includes/submit-rfc.yml

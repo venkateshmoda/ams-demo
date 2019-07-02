@@ -1,0 +1,9 @@
+
+  - name: generate ec2-startup.ps1
+    template:
+      src: templates/ec2-startup.ps1
+      dest: outputs/ec2-startup.ps1
+
+  - name: Create Secret {{ profile_string }}
+    shell: |
+      aws s3 cp outputs/ec2-startup.ps1 s3://{{ s3_bucket }}/ec2-startup.ps1 {{ profile_string }}

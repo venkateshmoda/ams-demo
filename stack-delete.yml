@@ -1,0 +1,37 @@
+---
+- hosts: localhost
+  tasks:
+
+  - name: common includes
+    include: includes/common-includes.yml
+    tags:
+      - always  
+
+  - name: Include {{ app_name }} list stacks
+    include: includes/get-stack-id.yml
+
+  - name: LAST CHANCE - ARE YOU SURE YOU WANT TO DELETE {{ stack_id.user_input }} in {{ env }} request_id {{ unique_key }}
+    pause:
+      prompt: "Hit ENTER to continue, or CONTROL+C then A to abort!"
+    register: xxx 
+
+  - name: generate execution parameters file
+    template:
+      src: templates/exec-params_cfn-delete.json
+      dest: outputs/exec-params_cfn-delete.json
+    tags:
+      - ams
+
+  - name: Create the RFC > Delete Stack {{ stack_id.user_input }} in {{ env }} request_id {{ unique_key }}
+    shell: |
+      aws amscm create-rfc \
+      --change-type-id ct-0q0bic0ywqk6c --change-type-version "1.0" \
+      --title "{{ app_name }} delete {{ stack_id.user_input }} in {{ env }} [request_id {{ unique_key }}]" \
+      --execution-parameters "file://outputs/exec-params_cfn-delete.json" --region us-east-1 {{ ams_profile_string }}
+    register: rfc_id
+    tags:
+      - ams
+      - ams_create
+
+  - name: Include {{ app_name }} submit stack
+    include: includes/submit-rfc.yml
